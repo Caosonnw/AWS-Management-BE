@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Benefits {
+  benefit_id        Int                 @id @default(autoincrement())
+  benefit_name      String              @db.VarChar(100)
+  benefit_amount    Decimal?            @db.Decimal(10, 2)
+  Employee_Benefits Employee_Benefits[]
+}
+
+model Blog {
+  blog_id     Int        @id @default(autoincrement())
+  employee_id Int
+  title       String     @db.VarChar(255)
+  content     String     @db.Text
+  created_at  DateTime?  @db.DateTime(0)
+  Employees   Employees  @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Blog_ibfk_1")
+  Comments    Comments[]
+
+  @@index([employee_id], map: "employee_id")
+}
+
+model Burndown_Chart {
+  chart_id       Int      @id @default(autoincrement())
+  sprint_id      Int?
+  date           DateTime @db.Date
+  remaining_work Int
+  Sprints        Sprints? @relation(fields: [sprint_id], references: [sprint_id], onDelete: NoAction, onUpdate: NoAction, map: "Burndown_Chart_ibfk_1")
+
+  @@index([sprint_id], map: "sprint_id")
+}
+
+model Chat {
+  chat_id     Int        @id @default(autoincrement())
+  employee_id Int?
+  content     String?    @db.VarChar(255)
+  room_id     String?    @db.VarChar(255)
+  date_chat   DateTime?  @db.DateTime(0)
+  Employees   Employees? @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Chat_ibfk_1")
+
+  @@index([employee_id], map: "employee_id")
+}
+
+model Comments {
+  comment_id      Int       @id @default(autoincrement())
+  blog_id         Int
+  employee_id     Int
+  comment_content String    @db.Text
+  created_at      DateTime? @db.DateTime(0)
+  Blog            Blog      @relation(fields: [blog_id], references: [blog_id], onDelete: Cascade, onUpdate: NoAction, map: "Comments_ibfk_1")
+  Employees       Employees @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Comments_ibfk_2")
+
+  @@index([blog_id], map: "blog_id")
+  @@index([employee_id], map: "employee_id")
+}
+
+model Departments {
+  department_id   Int         @id @default(autoincrement())
+  department_name String      @db.VarChar(100)
+  manager_id      Int?
+  Employees       Employees[]
+  Projects        Projects[]
+}
+
+model Employee_Benefits {
+  employee_id Int
+  benefit_id  Int
+  Employees   Employees @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Employee_Benefits_ibfk_1")
+  Benefits    Benefits  @relation(fields: [benefit_id], references: [benefit_id], onDelete: NoAction, onUpdate: NoAction, map: "Employee_Benefits_ibfk_2")
+
+  @@id([employee_id, benefit_id])
+  @@index([benefit_id], map: "benefit_id")
+}
+
+model Employee_Projects {
+  employee_id Int
+  project_id  Int
+  role        String?   @db.VarChar(50)
+  Employees   Employees @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Employee_Projects_ibfk_1")
+  Projects    Projects  @relation(fields: [project_id], references: [project_id], onDelete: NoAction, onUpdate: NoAction, map: "Employee_Projects_ibfk_2")
+
+  @@id([employee_id, project_id])
+  @@index([project_id], map: "project_id")
+}
+
+model Employees {
+  employee_id                                         Int                   @id @default(autoincrement())
+  full_name                                           String                @db.VarChar(50)
+  email                                               String                @unique(map: "email") @db.VarChar(100)
+  password                                            String                @db.VarChar(255)
+  phone_number                                        String?               @db.VarChar(15)
+  avatar                                              String?               @db.VarChar(255)
+  date_of_birth                                       DateTime?             @db.Date
+  hire_date                                           DateTime?             @db.Date
+  salary                                              Int?
+  job_id                                              Int?
+  department_id                                       Int?
+  manager_id                                          Int?
+  refresh_token                                       String?               @db.Text
+  Blog                                                Blog[]
+  Chat                                                Chat[]
+  Comments                                            Comments[]
+  Employee_Benefits                                   Employee_Benefits[]
+  Employee_Projects                                   Employee_Projects[]
+  Departments                                         Departments?          @relation(fields: [department_id], references: [department_id], onDelete: NoAction, onUpdate: NoAction, map: "Employees_ibfk_1")
+  Employees                                           Employees?            @relation("EmployeesToEmployees", fields: [manager_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Employees_ibfk_2")
+  other_Employees                                     Employees[]           @relation("EmployeesToEmployees")
+  Job_Titles                                          Job_Titles?           @relation(fields: [job_id], references: [job_id], onDelete: NoAction, onUpdate: NoAction, map: "Employees_ibfk_3")
+  Salaries_Employees_salaryToSalaries                 Salaries?             @relation("Employees_salaryToSalaries", fields: [salary], references: [salary_id], onDelete: NoAction, onUpdate: NoAction, map: "Employees_ibfk_4")
+  Performance_Reviews                                 Performance_Reviews[]
+  Salaries                                            Salaries[]
+  Scrum_Teams_Scrum_Teams_scrum_master_idToEmployees  Scrum_Teams[]         @relation("Scrum_Teams_scrum_master_idToEmployees")
+  Scrum_Teams_Scrum_Teams_product_owner_idToEmployees Scrum_Teams[]         @relation("Scrum_Teams_product_owner_idToEmployees")
+  Tasks                                               Tasks[]
+  Team_Members                                        Team_Members[]
+  Timesheets                                          Timesheets[]
+
+  @@index([department_id], map: "department_id")
+  @@index([job_id], map: "job_id")
+  @@index([manager_id], map: "manager_id")
+  @@index([salary], map: "salary")
+}
+
+model Job_Titles {
+  job_id     Int         @id @default(autoincrement())
+  job_title  String      @db.VarChar(50)
+  min_salary Int?
+  max_salary Int?
+  Employees  Employees[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Performance_Reviews {
+  review_id    Int        @id @default(autoincrement())
+  employee_id  Int?
+  review_date  DateTime   @db.Date
+  review_score Int?
+  comments     String?    @db.Text
+  Employees    Employees? @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Performance_Reviews_ibfk_1")
+
+  @@index([employee_id], map: "employee_id")
+}
+
+model Product_Backlog {
+  backlog_item_id Int            @id @default(autoincrement())
+  title           String         @db.VarChar(255)
+  description     String?        @db.Text
+  priority        String         @db.VarChar(20)
+  status          String         @db.VarChar(20)
+  sprint_id       Int?
+  Sprints         Sprints?       @relation(fields: [sprint_id], references: [sprint_id], onDelete: NoAction, onUpdate: NoAction, map: "Product_Backlog_ibfk_1")
+  User_Stories    User_Stories[]
+
+  @@index([sprint_id], map: "sprint_id")
+}
+
+model Projects {
+  project_id        Int                 @id @default(autoincrement())
+  project_name      String              @db.VarChar(100)
+  start_date        DateTime            @db.Date
+  end_date          DateTime?           @db.Date
+  budget            Decimal?            @db.Decimal(10, 2)
+  department_id     Int?
+  Employee_Projects Employee_Projects[]
+  Departments       Departments?        @relation(fields: [department_id], references: [department_id], onDelete: NoAction, onUpdate: NoAction, map: "Projects_ibfk_1")
+
+  @@index([department_id], map: "department_id")
+}
+
+model Salaries {
+  salary_id                            Int         @id @default(autoincrement())
+  employee_id                          Int?
+  salary_date                          DateTime    @db.Date
+  salary_amount                        Int
+  Employees_Employees_salaryToSalaries Employees[] @relation("Employees_salaryToSalaries")
+  Employees                            Employees?  @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Salaries_ibfk_1")
+
+  @@index([employee_id], map: "employee_id")
+}
+
+model Scrum_Teams {
+  team_id                                           Int            @id @default(autoincrement())
+  team_name                                         String         @db.VarChar(100)
+  sprint_id                                         Int?
+  scrum_master_id                                   Int?
+  product_owner_id                                  Int?
+  Sprints                                           Sprints?       @relation(fields: [sprint_id], references: [sprint_id], onDelete: NoAction, onUpdate: NoAction, map: "Scrum_Teams_ibfk_1")
+  Employees_Scrum_Teams_scrum_master_idToEmployees  Employees?     @relation("Scrum_Teams_scrum_master_idToEmployees", fields: [scrum_master_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Scrum_Teams_ibfk_2")
+  Employees_Scrum_Teams_product_owner_idToEmployees Employees?     @relation("Scrum_Teams_product_owner_idToEmployees", fields: [product_owner_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Scrum_Teams_ibfk_3")
+  Team_Members                                      Team_Members[]
+
+  @@index([product_owner_id], map: "product_owner_id")
+  @@index([scrum_master_id], map: "scrum_master_id")
+  @@index([sprint_id], map: "sprint_id")
+}
+
+model Sprints {
+  sprint_id       Int               @id @default(autoincrement())
+  sprint_name     String            @db.VarChar(100)
+  start_date      DateTime          @db.Date
+  end_date        DateTime          @db.Date
+  goal            String?           @db.Text
+  status          String            @db.VarChar(20)
+  Burndown_Chart  Burndown_Chart[]
+  Product_Backlog Product_Backlog[]
+  Scrum_Teams     Scrum_Teams[]
+  Tasks           Tasks[]
+}
+
+model Tasks {
+  task_id      Int           @id @default(autoincrement())
+  task_name    String        @db.VarChar(255)
+  description  String?       @db.Text
+  assigned_to  Int?
+  status       String        @db.VarChar(20)
+  priority     String?       @db.VarChar(20)
+  sprint_id    Int?
+  story_id     Int?
+  Employees    Employees?    @relation(fields: [assigned_to], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Tasks_ibfk_1")
+  Sprints      Sprints?      @relation(fields: [sprint_id], references: [sprint_id], onDelete: NoAction, onUpdate: NoAction, map: "Tasks_ibfk_2")
+  User_Stories User_Stories? @relation(fields: [story_id], references: [story_id], onDelete: NoAction, onUpdate: NoAction, map: "Tasks_ibfk_3")
+
+  @@index([assigned_to], map: "assigned_to")
+  @@index([sprint_id], map: "sprint_id")
+  @@index([story_id], map: "story_id")
+}
+
+model Team_Members {
+  team_id     Int
+  employee_id Int
+  Scrum_Teams Scrum_Teams @relation(fields: [team_id], references: [team_id], onDelete: NoAction, onUpdate: NoAction, map: "Team_Members_ibfk_1")
+  Employees   Employees   @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Team_Members_ibfk_2")
+
+  @@id([team_id, employee_id])
+  @@index([employee_id], map: "employee_id")
+}
+
+model Timesheets {
+  timesheet_id Int        @id @default(autoincrement())
+  employee_id  Int?
+  date         DateTime   @db.Date
+  hours_worked Decimal    @db.Decimal(5, 2)
+  Employees    Employees? @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Timesheets_ibfk_1")
+
+  @@index([employee_id], map: "employee_id")
+}
+
+model User_Stories {
+  story_id            Int              @id @default(autoincrement())
+  story_title         String           @db.VarChar(255)
+  acceptance_criteria String?          @db.Text
+  story_points        Int?
+  backlog_item_id     Int?
+  Tasks               Tasks[]
+  Product_Backlog     Product_Backlog? @relation(fields: [backlog_item_id], references: [backlog_item_id], onDelete: NoAction, onUpdate: NoAction, map: "User_Stories_ibfk_1")
+
+  @@index([backlog_item_id], map: "backlog_item_id")
+}
