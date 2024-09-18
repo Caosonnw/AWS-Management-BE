@@ -242,11 +242,13 @@ model Team_Members {
 }
 
 model Timesheets {
-  timesheet_id Int        @id @default(autoincrement())
-  employee_id  Int?
-  date         DateTime   @db.Date
-  hours_worked Decimal    @db.Decimal(5, 2)
-  Employees    Employees? @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Timesheets_ibfk_1")
+  timesheet_id     Int        @id @default(autoincrement())
+  employee_id      Int?
+  date_timekeeping DateTime?  @db.Date
+  clock_in         String?    @db.VarChar(100)
+  clock_out        String?    @db.VarChar(100)
+  hours_worked     String     @db.VarChar(100)
+  Employees        Employees? @relation(fields: [employee_id], references: [employee_id], onDelete: NoAction, onUpdate: NoAction, map: "Timesheets_ibfk_1")
 
   @@index([employee_id], map: "employee_id")
 }
