@@ -4,15 +4,13 @@ import {
   Param,
   Post,
   UploadedFile,
-  UseGuards,
-  UseInterceptors,
+  UseInterceptors
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { UploadAvatarDto } from 'src/config/upload-dto/upload-avatar-dto';
 import { uploadOptions } from 'src/config/upload.config';
 import { EmployeeService } from './employee.service';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
 @ApiTags('Employee')
 @Controller('employee')

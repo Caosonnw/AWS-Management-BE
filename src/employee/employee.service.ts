@@ -6,27 +6,7 @@ export class EmployeeService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async getAllEmployees() {
-    const users = await this.prisma.employees.findMany({
-      include: {
-        Job_Titles: {
-          select: {
-            job_title: true,
-            min_salary: true,
-            max_salary: true,
-          },
-        },
-        Departments: {
-          select: {
-            department_name: true,
-          },
-        },
-        Employees: {
-          select: {
-            full_name: true,
-          },
-        },
-      },
-    });
+    const users = await this.prisma.employees.findMany();
 
     if (users && users.length > 0) {
       const result = users.map((user) => ({
@@ -38,11 +18,7 @@ export class EmployeeService {
         date_of_birth: user.date_of_birth,
         hire_date: user.hire_date,
         salary: user.salary,
-        job_title: user.Job_Titles ? user.Job_Titles.job_title : null,
-        department_name: user.Departments
-          ? user.Departments.department_name
-          : null,
-        manager_name: user.Employees ? user.Employees.full_name : null,
+        role: user.role,
       }));
 
       return {
@@ -62,25 +38,6 @@ export class EmployeeService {
       where: {
         employee_id: user_id,
       },
-      include: {
-        Job_Titles: {
-          select: {
-            job_title: true,
-            min_salary: true,
-            max_salary: true,
-          },
-        },
-        Departments: {
-          select: {
-            department_name: true,
-          },
-        },
-        Employees: {
-          select: {
-            full_name: true,
-          },
-        },
-      },
     });
 
     if (user) {
@@ -93,11 +50,7 @@ export class EmployeeService {
         date_of_birth: user.date_of_birth,
         hire_date: user.hire_date,
         salary: user.salary,
-        job_title: user.Job_Titles ? user.Job_Titles.job_title : null,
-        department_name: user.Departments
-          ? user.Departments.department_name
-          : null,
-        manager_name: user.Employees ? user.Employees.full_name : null,
+        role: user.role,
       };
 
       return {

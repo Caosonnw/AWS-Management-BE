@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common'; // Thêm import HttpStatus
 import { PrismaClient } from '@prisma/client';
 import * as moment from 'moment-timezone';
 
@@ -6,35 +6,91 @@ import * as moment from 'moment-timezone';
 export class TimekeepingService {
   constructor(private prisma: PrismaClient) {}
 
-  async clockInTimeKeeping(employee_id) {
-    const employeeId = parseInt(employee_id);
+  // Hàm tính toán khoảng cách Euclidean giữa hai embeddings
+  calculateEuclideanDistance(
+    embedding1: number[],
+    embedding2: number[],
+  ): number {
+    if (!Array.isArray(embedding1) || !Array.isArray(embedding2)) {
+      throw new Error('Embeddings are not arrays');
+    }
+
+    const sum = embedding1.reduce(
+      (acc, val, i) => acc + Math.pow(val - embedding2[i], 2),
+      0,
+    );
+    return Math.sqrt(sum);
+  }
+
+  async registerFace(employeeId: number, embeddings: number[]) {
     try {
-      // Kiểm tra nhân viên có tồn tại không
+      // Chuyển embeddings thành JSON
+      const embeddingsJSON = JSON.stringify(embeddings);
+
+      // Cập nhật embeddings cho nhân viên trong DB
+      const updatedEmployee = await this.prisma.employees.update({
+        where: { employee_id: employeeId },
+        data: { face_embeddings: embeddingsJSON },
+      });
+
+      return {
+        message: 'Face embeddings saved successfully',
+        employee: updatedEmployee,
+      };
+    } catch (error) {
+      console.error('Error saving face embeddings:', error);
+      throw new Error('Failed to save face embeddings');
+    }
+  }
+
+  async clockInTimeKeeping(employee_id: number, embeddings: any) {
+    const employeeId = parseInt(employee_id.toString());
+
+    // Chuyển embeddings thành mảng nếu cần
+    const receivedEmbeddings = Array.isArray(embeddings)
+      ? embeddings
+      : Object.values(embeddings);
+
+    try {
       const user = await this.prisma.employees.findFirst({
-        where: {
-          employee_id: employeeId,
-        },
+        where: { employee_id: employeeId },
       });
 
       if (user) {
-        // Lấy ngày hiện tại theo định dạng ISO-8601 (YYYY-MM-DD)
-        const today = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+        const registeredEmbeddings = JSON.parse(user.face_embeddings as string);
 
-        // Kiểm tra xem đã có bảng chấm công hôm nay chưa
+        const registeredEmbeddingArray = Array.isArray(registeredEmbeddings)
+          ? registeredEmbeddings
+          : Object.values(registeredEmbeddings);
+
+        // So sánh embeddings
+        const distance = this.calculateEuclideanDistance(
+          receivedEmbeddings,
+          registeredEmbeddingArray,
+        );
+
+        const threshold = 0.6;
+        if (distance > threshold) {
+          return {
+            message: 'Face does not match',
+            statusCode: HttpStatus.UNAUTHORIZED,
+          };
+        }
+
+        // Nếu khuôn mặt khớp, tiếp tục với quy trình check-in
+        const today = new Date().toISOString().split('T')[0];
         const existingTimekeeping = await this.prisma.timesheets.findMany({
           where: {
             employee_id: employeeId,
-            date_timekeeping: new Date(today), // Lưu ngày theo định dạng `Date`
+            date_timekeeping: new Date(today),
           },
         });
 
         if (!existingTimekeeping || existingTimekeeping.length === 0) {
-          // Lấy giờ hiện tại theo múi giờ Việt Nam (HH:MM:SS)
           const clockInTime = moment()
             .tz('Asia/Ho_Chi_Minh')
             .format('HH:mm:ss');
 
-          // Nếu chưa có bảng chấm công, tạo mới với clock_in
           const timekeeping = await this.prisma.timesheets.create({
             data: {
               employee_id: employeeId,
@@ -43,20 +99,32 @@ export class TimekeepingService {
               hours_worked: '0h 0m',
             },
           });
-          return timekeeping;
+          return {
+            data: timekeeping,
+            message: 'Employee checked in successfully',
+          };
         } else {
           return { message: 'Employee has already checked in today' };
         }
       } else {
-        return { message: 'Employee not found' };
+        return {
+          message: 'Employee not found',
+          statusCode: HttpStatus.NOT_FOUND,
+        };
       }
     } catch (error) {
       throw new Error('Error creating timekeeping record: ' + error.message);
     }
   }
 
-  async clockOutTimeKeeping(employee_id) {
-    const employeeId = parseInt(employee_id);
+  async clockOutTimeKeeping(employee_id: number, embeddings: any) {
+    const employeeId = parseInt(employee_id.toString());
+
+    // Chuyển embeddings thành mảng nếu cần
+    const receivedEmbeddings = Array.isArray(embeddings)
+      ? embeddings
+      : Object.values(embeddings);
+
     try {
       // Kiểm tra nhân viên có tồn tại không
       const user = await this.prisma.employees.findFirst({
@@ -64,13 +132,33 @@ export class TimekeepingService {
       });
 
       if (!user) {
-        return { message: 'Employee not found' };
+        return {
+          message: 'Employee not found',
+          statusCode: HttpStatus.NOT_FOUND, // Thêm HttpStatus
+        };
       }
 
-      // Lấy ngày hiện tại theo múi giờ Việt Nam
-      const today = new Date().toISOString().split('T')[0];
+      const registeredEmbeddings = JSON.parse(user.face_embeddings as string);
 
-      // Tìm bảng chấm công của ngày hôm nay
+      const registeredEmbeddingArray = Array.isArray(registeredEmbeddings)
+        ? registeredEmbeddings
+        : Object.values(registeredEmbeddings);
+
+      // So sánh embeddings
+      const distance = this.calculateEuclideanDistance(
+        receivedEmbeddings,
+        registeredEmbeddingArray,
+      );
+      const threshold = 0.6; // Ngưỡng để xác định khớp (có thể tùy chỉnh)
+
+      if (distance > threshold) {
+        return {
+          message: 'Face does not match',
+          statusCode: HttpStatus.UNAUTHORIZED,
+        };
+      }
+
+      const today = new Date().toISOString().split('T')[0];
       const existingTimekeeping = await this.prisma.timesheets.findFirst({
         where: {
           employee_id: employeeId,
@@ -86,22 +174,15 @@ export class TimekeepingService {
         return { message: 'Employee has already clocked out today' };
       }
 
-      // Lấy giờ hiện tại theo múi giờ Việt Nam (HH:MM:SS)
       const clockOutTime = moment().tz('Asia/Ho_Chi_Minh').format('HH:mm:ss');
-
-      // Tính số giờ làm việc giữa clock_in và clock_out
       const clockInTime = moment(existingTimekeeping.clock_in, 'HH:mm:ss');
       const clockOutMoment = moment(clockOutTime, 'HH:mm:ss');
       const duration = moment.duration(clockOutMoment.diff(clockInTime));
 
-      // Lấy số giờ và số phút
       const hours = Math.floor(duration.asHours());
       const minutes = duration.minutes();
-
-      // Tạo chuỗi "HH:mm" để lưu vào hours_worked
       const hoursWorked = `${hours}h ${minutes}m`;
 
-      // Cập nhật `clock_out` và `hours_worked`
       const updatedTimekeeping = await this.prisma.timesheets.update({
         where: { timesheet_id: existingTimekeeping.timesheet_id },
         data: {
@@ -110,9 +191,108 @@ export class TimekeepingService {
         },
       });
 
-      return updatedTimekeeping;
+      return {
+        data: updatedTimekeeping,
+        message: 'Employee clocked out successfully',
+      };
     } catch (error) {
       throw new Error('Error updating timekeeping record: ' + error.message);
+    }
+  }
+
+  async checkTimekeeping(employee_id: number) {
+    const employeeId = parseInt(employee_id.toString());
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const existingTimekeeping = await this.prisma.timesheets.findMany({
+        where: {
+          employee_id: employeeId,
+          date_timekeeping: new Date(today),
+        },
+      });
+
+      if (!existingTimekeeping || existingTimekeeping.length === 0) {
+        return {
+          message: 'No timekeeping record found for today',
+          statusCode: HttpStatus.NOT_FOUND,
+        };
+      } else if (existingTimekeeping.length === 1) {
+        return {
+          data: existingTimekeeping[0],
+          message: 'Timekeeping record retrieved successfully',
+          statusCode: HttpStatus.OK,
+        };
+      }
+    } catch (error) {
+      throw new Error('Error fetching timekeeping record: ' + error.message);
+    }
+  }
+
+  async getTotalTimekeeping(employee_id: number) {
+    const employeeId = parseInt(employee_id.toString());
+
+    // Lấy ngày đầu và ngày cuối của tháng hiện tại
+    const startOfMonth = moment().startOf('month').toDate();
+    const endOfMonth = moment().endOf('month').toDate();
+
+    try {
+      // Kiểm tra xem nhân viên có tồn tại không
+      const user = await this.prisma.employees.findFirst({
+        where: { employee_id: employeeId },
+      });
+
+      if (!user) {
+        return {
+          message: 'Employee not found',
+          statusCode: HttpStatus.NOT_FOUND,
+        };
+      }
+
+      // Lấy tất cả các bản ghi timekeeping của nhân viên trong tháng hiện tại
+      const timekeepingRecords = await this.prisma.timesheets.findMany({
+        where: {
+          employee_id: employeeId,
+          date_timekeeping: {
+            gte: startOfMonth, // Ngày lớn hơn hoặc bằng ngày đầu tháng
+            lte: endOfMonth, // Ngày nhỏ hơn hoặc bằng ngày cuối tháng
+          },
+        },
+        select: {
+          hours_worked: true, // Chỉ lấy trường hours_worked
+        },
+      });
+
+      // Hàm chuyển đổi từ 'xh ym' sang số giờ thập phân
+      const convertHoursWorkedToDecimal = (hoursWorked: string) => {
+        const regex = /(\d+)h\s*(\d*)m?/; // Biểu thức chính quy để tách giờ và phút
+        const match = hoursWorked.match(regex);
+
+        if (!match) return 0;
+
+        const hours = parseInt(match[1], 10);
+        const minutes = match[2] ? parseInt(match[2], 10) : 0;
+        return hours + minutes / 60; // Chuyển phút thành phần lẻ của giờ
+      };
+
+      // Tính tổng số giờ làm việc
+      const totalHoursDecimal = timekeepingRecords.reduce((sum, record) => {
+        return sum + convertHoursWorkedToDecimal(record.hours_worked);
+      }, 0);
+
+      // Chuyển đổi tổng số giờ từ số thập phân sang giờ và phút
+      const totalHours = Math.floor(totalHoursDecimal); // Giờ
+      const totalMinutes = Math.round((totalHoursDecimal - totalHours) * 60); // Phút
+
+      return {
+        data: {
+          hours: totalHours,
+          minutes: totalMinutes,
+        },
+        message: 'Total hours worked retrieved successfully',
+        statusCode: HttpStatus.OK,
+      };
+    } catch (error) {
+      throw new Error('Error fetching total hours worked: ' + error.message);
     }
   }
 }
